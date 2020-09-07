@@ -118,9 +118,14 @@ func (d *DNSProvider) Timeout() (timeout, interval time.Duration) {
 	return d.config.PropagationTimeout, d.config.PollingInterval
 }
 
-// Present creates a TXT record to fulfill the dns-01 challenge
+// Present gets the TXT record and calls to CreateRecord to create it
 func (d *DNSProvider) Present(domain, token, keyAuth string) error {
 	fqdn, value := dns01.GetRecord(domain, keyAuth)
+	return d.CreateRecord(fqdn, value)
+}
+
+// CreateRecord creates a TXT record to fulfill the dns-01 challenge
+func (d *DNSProvider) CreateRecord(fqdn, value string) error {
 
 	authZone, err := dns01.FindZoneByFqdn(fqdn)
 	if err != nil {
@@ -149,17 +154,22 @@ func (d *DNSProvider) Present(domain, token, keyAuth string) error {
 	}
 
 	d.recordIDsMu.Lock()
-	d.recordIDs[token] = response.Result.ID
+	d.recordIDs[value] = response.Result.ID
 	d.recordIDsMu.Unlock()
 
-	log.Infof("cloudflare: new record for %s, ID %s", domain, response.Result.ID)
+	log.Infof("cloudflare: new record for %s, ID %s", fqdn, response.Result.ID)
 
 	return nil
 }
 
-// CleanUp removes the TXT record matching the specified parameters
+// CleanUp gets the TXT record and calls to RemoveRecord to remove it
 func (d *DNSProvider) CleanUp(domain, token, keyAuth string) error {
-	fqdn, _ := dns01.GetRecord(domain, keyAuth)
+	fqdn, value := dns01.GetRecord(domain, keyAuth)
+	return d.RemoveRecord(fqdn, value)
+}
+
+// RemoveRecord removes the TXT record matching the specified parameters
+func (d *DNSProvider) RemoveRecord(fqdn, value string) error {
 
 	authZone, err := dns01.FindZoneByFqdn(fqdn)
 	if err != nil {
@@ -173,7 +183,7 @@ func (d *DNSProvider) CleanUp(domain, token, keyAuth string) error {
 
 	// get the record's unique ID from when we created it
 	d.recordIDsMu.Lock()
-	recordID, ok := d.recordIDs[token]
+	recordID, ok := d.recordIDs[value]
 	d.recordIDsMu.Unlock()
 	if !ok {
 		return fmt.Errorf("cloudflare: unknown record ID for '%s'", fqdn)
@@ -186,7 +196,7 @@ func (d *DNSProvider) CleanUp(domain, token, keyAuth string) error {
 
 	// Delete record ID from map
 	d.recordIDsMu.Lock()
-	delete(d.recordIDs, token)
+	delete(d.recordIDs, value)
 	d.recordIDsMu.Unlock()
 
 	return nil
