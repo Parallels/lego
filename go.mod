@@ -1,4 +1,4 @@
-module github.com/Roman513/lego/v3
+module github.com/Parallels/lego/v3
 
 go 1.13
 
