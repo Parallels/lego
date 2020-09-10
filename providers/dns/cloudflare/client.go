@@ -2,6 +2,7 @@ package cloudflare
 
 import (
 	"sync"
+	"errors"
 
 	"github.com/cloudflare/cloudflare-go"
 	"github.com/go-acme/lego/v3/challenge/dns01"
@@ -79,9 +80,18 @@ func (m *metaClient) ZoneIDByName(fdqn string) (string, error) {
 		return id, nil
 	}
 
-	id, err := m.clientRead.ZoneIDByName(dns01.UnFqdn(fdqn))
+	zones, err := m.clientRead.ListZones(dns01.UnFqdn(fdqn))
 	if err != nil {
 		return "", err
+	}
+
+	for _, z := range zones {
+		id = z.ID
+		break
+	}
+
+	if id == "" {
+		return "", errors.New("cloudflare dns provider: zone " + fdqn + " not found")
 	}
 
 	m.zonesMu.Lock()
